@@ -8,44 +8,49 @@ This module is responsible for:
 """
 import mimetypes
 import re
+import logging
 from pathlib import Path
 from typing import Tuple, Union, Dict, Any, Optional
+
+# Import configurations
+from config import FILE_EXTENSIONS
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Configure mimetypes
 mimetypes.init()
 
 # Common patterns for intent classification
-SUMMARIZE_PATTERNS = [
-    r'summar(?:y|ize|ise)',
-    r'brief(?:ly)?',
-    r'in (?:short|brief|summary)',
-    r'tl;?dr',
-]
-
-TRANSLATE_PATTERNS = [
-    r'translate(?: to)?',
-    r'in (?:spanish|french|german|chinese|japanese|korean|hindi)',
-]
-
-SENTIMENT_PATTERNS = [
-    r'sentiment',
-    r'emotion',
-    r'feel(?:ing)? (?:about|toward)',
-    r'tone of',
-]
-
-GENERATION_PATTERNS = [
-    r'write (?:me )?(?:a|an)',
-    r'generate',
-    r'create',
-    r'compose',
-]
-
-CLASSIFICATION_PATTERNS = [
-    r'classify',
-    r'categor(?:y|ize|ise)',
-    r'what (?:type|kind) of',
-]
+INTENT_PATTERNS = {
+    'summarization': [
+        r'summar(?:y|ize|ise)',
+        r'brief(?:ly)?',
+        r'in (?:short|brief|summary)',
+        r'tl;?dr',
+    ],
+    'translation': [
+        r'translate(?: to)?',
+        r'in (?:spanish|french|german|chinese|japanese|korean|hindi)',
+    ],
+    'sentiment_analysis': [
+        r'sentiment',
+        r'emotion',
+        r'feel(?:ing)? (?:about|toward)',
+        r'tone of',
+    ],
+    'text_generation': [
+        r'write (?:me )?(?:a|an)',
+        r'generate',
+        r'create',
+        r'compose',
+    ],
+    'text_classification': [
+        r'classify',
+        r'categor(?:y|ize|ise)',
+        r'what (?:type|kind) of',
+    ]
+}
 
 
 def detect_input_type(user_input: Union[str, bytes, Dict[str, Any], Path]) -> str:
@@ -104,9 +109,24 @@ def detect_input_type(user_input: Union[str, bytes, Dict[str, Any], Path]) -> st
     return 'text'
 
 
-def _matches_patterns(text: str, patterns: list) -> bool:
-    """Check if the text matches any of the given patterns."""
-    return any(re.search(pattern, text, re.IGNORECASE) for pattern in patterns)
+def _matches_patterns(text: str, intent_type: str) -> bool:
+    """
+    Check if the text matches any of the patterns for the given intent type.
+    
+    Args:
+        text: The input text to check
+        intent_type: The type of intent to check for
+        
+    Returns:
+        bool: True if any pattern matches, False otherwise
+    """
+    if intent_type not in INTENT_PATTERNS:
+        logger.warning(f"Unknown intent type: {intent_type}")
+        return False
+        
+    patterns = INTENT_PATTERNS[intent_type]
+    text = text.lower()
+    return any(re.search(pattern, text) for pattern in patterns)
 
 
 def classify_intent(user_input: Union[str, Dict[str, Any]]) -> str:
@@ -119,39 +139,56 @@ def classify_intent(user_input: Union[str, Dict[str, Any]]) -> str:
     Returns:
         str: The detected intent (e.g., 'summarization', 'translation', etc.)
     """
-    # Extract text from dict if needed
-    if isinstance(user_input, dict) and 'text' in user_input:
-        text = user_input['text']
-    elif isinstance(user_input, str):
-        text = user_input
+    # Extract text if input is a dictionary
+    if isinstance(user_input, dict):
+        text = user_input.get('text', '')
     else:
-        return 'text-generation'  # Default
+        text = str(user_input)
     
-    text = text.lower().strip()
+    # Check for specific intents in order of specificity
+    for intent_type in [
+        'summarization',
+        'translation',
+        'sentiment_analysis',
+        'text_classification',
+        'text_generation'
+    ]:
+        if _matches_patterns(text, intent_type):
+            # Convert to the format expected by the pipeline
+            return intent_type.replace('_', '-')
     
-    # Check for empty input
-    if not text:
-        return 'unknown'
-    
-    # Check for specific intents using patterns
-    if _matches_patterns(text, SUMMARIZE_PATTERNS):
-        return 'summarization'
-    elif _matches_patterns(text, TRANSLATE_PATTERNS):
-        return 'translation'
-    elif _matches_patterns(text, SENTIMENT_PATTERNS):
-        return 'sentiment-analysis'
-    elif _matches_patterns(text, GENERATION_PATTERNS):
-        return 'text-generation'
-    elif _matches_patterns(text, CLASSIFICATION_PATTERNS):
-        return 'text-classification'
-    
-    # Check for question-answering
-    if any(text.startswith(q) for q in ['what', 'when', 'where', 'why', 'how', 'who', 'which']):
-        if '?' in text or ' ' in text:  # Simple heuristic for questions
-            return 'question-answering'
-    
-    # Default to text generation
+    # Default to text generation if no specific intent is detected
     return 'text-generation'
+
+
+def _detect_file_type(file_path: Union[str, Path]) -> str:
+    """
+    Detect the file type based on extension or content.
+    
+    Args:
+        file_path: Path to the file
+        
+    Returns:
+        str: Detected file type ('text', 'image', 'audio', or 'unknown')
+    """
+    file_path = str(file_path).lower()
+    
+    # Check by file extension first
+    for file_type, extensions in FILE_EXTENSIONS.items():
+        if any(file_path.endswith(ext) for ext in extensions):
+            return file_type
+    
+    # Fallback to mimetype detection
+    mime_type, _ = mimetypes.guess_type(file_path)
+    if mime_type:
+        if mime_type.startswith('text/'):
+            return 'text'
+        elif mime_type.startswith('image/'):
+            return 'image'
+        elif mime_type.startswith('audio/') or mime_type.startswith('video/'):
+            return 'audio'
+    
+    return 'unknown'
 
 
 def route_task(input_data: Any) -> Tuple[str, str]:
@@ -170,32 +207,33 @@ def route_task(input_data: Any) -> Tuple[str, str]:
         tuple: (input_type, intent)
     """
     try:
-        # Detect input type
-        input_type = detect_input_type(input_data)
+        # Handle dictionary input
+        if isinstance(input_data, dict):
+            # If it's a file upload, detect type from file extension
+            if 'file' in input_data:
+                file_path = input_data['file']
+                input_type = _detect_file_type(file_path)
+                return input_type, classify_intent(input_data)
+            # Otherwise, treat as text with metadata
+            return 'text', classify_intent(input_data)
         
-        # Classify intent
-        intent = classify_intent(input_data)
+        # Handle file paths
+        if isinstance(input_data, (str, Path)) and Path(input_data).exists():
+            input_type = _detect_file_type(input_data)
+            return input_type, classify_intent(str(input_data))
         
-        # Log the routing decision
-        from ..utils.log_utils import log_event
-        log_event(
-            "task_router",
-            f"Routed input: type={input_type}, intent={intent}",
-            level="debug"
-        )
+        # Handle binary data with type hint
+        if isinstance(input_data, bytes):
+            # Try to determine type from magic numbers
+            if input_data.startswith(b'\x89PNG') or input_data.startswith(b'\xff\xd8\xff'):
+                return 'image', 'image-classification'
+            elif input_data.startswith(b'RIFF') and len(input_data) > 8 and input_data[8:12] == b'WAVE':
+                return 'audio', 'automatic-speech-recognition'
         
-        return input_type, intent
+        # Default to text processing
+        return 'text', classify_intent(str(input_data))
         
     except Exception as e:
-        # Log the error and return defaults
-        from ..utils.log_utils import log_event
-        log_event(
-            "task_router",
-            f"Error in route_task: {str(e)}",
-            level="error"
-        )
-        return 'text', 'text-generation'  # Default fallback
-    else:
-        intent = "unknown"
-    
-    return input_type, intent
+        logger.error(f"Error in route_task: {str(e)}")
+        # Fallback to text processing
+        return 'text', 'text-generation'

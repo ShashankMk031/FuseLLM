@@ -8,6 +8,7 @@ from .retriever import Retriever
 from .fuser import Fuser
 from .validator import is_valid_output
 from .response_formatter import format_response
+from .response_filter import filter_response
 from ..utils.log_utils import log_event
 
 logger = logging.getLogger(__name__)
@@ -91,8 +92,15 @@ def run_fuse_pipeline(
         # Step 6: Format the response
         try:
             formatted_response = format_response(intent, fused_result)
-            log_event("orchestrator", "Successfully generated response")
-            return formatted_response
+            
+            # Filter the response to ensure it's appropriate
+            filtered_response = filter_response(
+                response=formatted_response,
+                user_input=user_input if isinstance(user_input, str) else str(user_input)
+            )
+            
+            log_event("orchestrator", "Successfully generated and filtered response")
+            return filtered_response
             
         except Exception as e:
             log_event("orchestrator", f"Error formatting response: {str(e)}", level="error")

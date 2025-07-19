@@ -148,7 +148,28 @@ def run_pipeline(task: str, data: Any, **kwargs) -> Any:
                 # Read text files
                 with open(data, 'r', encoding='utf-8') as f:
                     content = f.read()
-                return pipe(content, **kwargs)
+                
+                # For text generation, ensure the input is properly formatted
+                if task == 'text-generation':
+                    # Clean and prepare the input
+                    content = content.strip()
+                    # Add a prompt if it's a very short input
+                    if len(content.split()) < 5:
+                        content = f"User: {content}\nAI:"
+                    # Generate response with constrained parameters
+                    response = pipe(
+                        content,
+                        **{
+                            **kwargs,
+                            'return_full_text': False,
+                            'max_length': min(kwargs.get('max_length', 50), 100),  # Cap max length
+                            'temperature': min(kwargs.get('temperature', 0.7), 0.8),  # Cap temperature
+                        }
+                    )
+                    # Ensure we return a string, not a list
+                    if isinstance(response, list) and response:
+                        return response[0].get('generated_text', '').strip()
+                    return str(response).strip()
                 
             elif file_ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp']:
                 # Handle images
@@ -179,6 +200,28 @@ def run_pipeline(task: str, data: Any, **kwargs) -> Any:
             
         else:
             # Single input (text, image, audio, etc.)
+            if task == 'text-generation' and isinstance(data, str):
+                # Clean and prepare the input
+                data = data.strip()
+                # Format as a conversation if needed
+                if not data.endswith(('?', '!', '.')):
+                    data = f"User: {data}\nAI:"
+                
+                # Generate response with constrained parameters
+                response = pipe(
+                    data,
+                    **{
+                        **kwargs,
+                        'return_full_text': False,
+                        'max_length': min(kwargs.get('max_length', 50), 100),  # Cap max length
+                        'temperature': min(kwargs.get('temperature', 0.7), 0.8),  # Cap temperature
+                    }
+                )
+                
+                # Ensure we return a string, not a list
+                if isinstance(response, list) and response:
+                    return response[0].get('generated_text', '').strip()
+                return str(response).strip()
             return pipe(data, **kwargs)
             
     except Exception as e:

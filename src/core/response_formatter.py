@@ -11,13 +11,20 @@ def format_response(intent: str, output):
         return f"Translated Text:\n{output.strip()}"
     
     elif intent == "text-generation":
-        return f" Here's a story for you:\n{output.strip()}"
+        return f"{output.strip()}"
     
     elif intent == "sentiment-analysis":
-        return f"Sentiment Analysis Result:\n{output}"
+        if isinstance(output, list):
+            # Format sentiment analysis results
+            return "\n".join([f"- {item['label'].title()}: {(item['score']*100):.1f}%" for item in output])
+        return str(output)
     
     elif intent == "image-classification":
-        return f" Image Classification Labels:\n{output}"
+        if isinstance(output, list):
+            # Format as a list of labels with confidence scores
+            labels = [f"- {item['label']} ({(item['score']*100):.1f}%)" for item in output]
+            return "\n".join(labels)
+        return str(output)
     
     elif intent == "automatic-speech-recognition":
         return f" Transcribed Audio:\n{output.strip()}"

@@ -18,15 +18,15 @@ def process_input(
     user_text: str,
     user_image: Optional[str],
     user_audio: Optional[str],
-    history: List[Tuple[str, str]]
-) -> Tuple[List[Tuple[str, str]], str, str, str]:
+    history: List[Dict[str, str]]
+) -> Tuple[List[Dict[str, str]], str, str, str]:
     """Process user input and generate a response.
     
     Args:
         user_text: User's text input
         user_image: Path to uploaded image or None
         user_audio: Path to uploaded audio file or None
-        history: Chat history as list of (user_message, bot_response) tuples
+        history: Chat history as list of message dictionaries with 'role' and 'content' keys
         
     Returns:
         Updated history and cleared input fields
@@ -51,17 +51,28 @@ def process_input(
         # Process the input
         response = run_fuse_pipeline(input_value, input_type=input_type)
         
-        # Update history
+        # Create user message
         if input_type == "text":
-            history.append((user_text, response))
+            user_message = {"role": "user", "content": user_text}
         else:
-            history.append((f"[{input_type.upper()} UPLOADED]", response))
+            user_message = {"role": "user", "content": f"[{input_type.upper()} UPLOADED]"}
+        
+        # Create bot response
+        bot_message = {"role": "assistant", "content": response}
+        
+        # Update history
+        history.append(user_message)
+        history.append(bot_message)
             
     except Exception as e:
         error_msg = f"❌ Error processing your request: {str(e)}"
         log_event("web_ui", f"Error: {str(e)}", level="error")
-        history.append((user_text if input_type == "text" else f"[{input_type.upper()} UPLOADED]", 
-                       error_msg))
+        
+        error_message = {
+            "role": "assistant",
+            "content": error_msg
+        }
+        history.append(error_message)
     
     return history, "", "", ""
 
@@ -73,6 +84,8 @@ def create_web_interface() -> gr.Blocks:
         theme=gr.themes.Soft(primary_hue="blue"),
         css=CSS
     ) as demo:
+        # Initialize chat history if not exists
+        chat_history = gr.State([])
         # Header
         gr.Markdown(
             """
@@ -89,6 +102,8 @@ def create_web_interface() -> gr.Blocks:
             show_label=False,
             container=True,
             bubble_full_width=False,
+            type="messages",  # Use the new messages format
+            value=[]  # Initialize with empty list
         )
         
         # Input components
@@ -106,19 +121,48 @@ def create_web_interface() -> gr.Blocks:
                     type="filepath",
                     label="Upload Image",
                     visible=True,
-                    tool="select",
                     height=40,
+                    sources=["upload"],
+                    interactive=True
                 )
                 audio_upload = gr.Audio(
                     type="filepath",
                     label="Upload Audio",
                     visible=True,
+                    sources=["upload"]
                 )
         
         # Buttons
         with gr.Row():
             submit_btn = gr.Button("Send", variant="primary")
-            clear_btn = gr.Button("Clear Chat")
+            
+        # Set up event handlers
+        def submit_message(history, message, image, audio):
+            # Convert history to the correct format if needed
+            if history and isinstance(history[0], (list, tuple)):
+                history = []
+                
+            # Process the input and get updated history
+            updated_history, _, _, _ = process_input(message, image, audio, history)
+            return updated_history, "", None, None
+            
+        # Connect the submit button
+        submit_btn.click(
+            fn=submit_message,
+            inputs=[chatbot, text_input, image_upload, audio_upload],
+            outputs=[chatbot, text_input, image_upload, audio_upload],
+            queue=False
+        )
+        
+        # Also submit on Enter key
+        text_input.submit(
+            fn=submit_message,
+            inputs=[chatbot, text_input, image_upload, audio_upload],
+            outputs=[chatbot, text_input, image_upload, audio_upload],
+            queue=False
+        )
+        
+        clear_btn = gr.Button("Clear Chat")
         
         # Event handlers
         submit_btn.click(
@@ -160,7 +204,8 @@ def launch_web_interface(server_name: str = "0.0.0.0", server_port: int = 7860):
         server_name=server_name,
         server_port=server_port,
         share=False,
-        favicon_path=None,
+        debug=True,
+        favicon_path=None
     )
 
 

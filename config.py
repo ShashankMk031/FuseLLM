@@ -16,7 +16,7 @@ EMBEDDINGS_DIR = BASE_DIR / 'embeddings'
 # Model configurations
 MODEL_CONFIG = {
     # Text models
-    'text_generation': 'gpt2',
+    'text_generation': 'microsoft/DialoGPT-small',  # More focused than medium
     'summarization': 'facebook/bart-large-cnn',
     'translation': 'Helsinki-NLP/opus-mt-en-fr',
     'text_classification': 'distilbert-base-uncased-finetuned-sst-2-english',
@@ -33,12 +33,19 @@ MODEL_CONFIG = {
 
 # Default parameters for different tasks
 DEFAULT_PARAMS = {
-    'max_length': 150,           # For text generation
-    'num_return_sequences': 1,   # Number of sequences to generate
-    'temperature': 0.7,         # For controlling randomness
-    'top_k': 50,                # Top-k sampling
-    'top_p': 0.95,              # Nucleus sampling
-    'do_sample': True,          # Whether to use sampling
+    # Text generation parameters
+    'max_length': 50,            # Shorter responses
+    'min_length': 5,             # Minimum length
+    'num_return_sequences': 1,   # Only one response
+    'temperature': 0.7,          # Less random than before
+    'top_k': 30,                 # More focused sampling
+    'top_p': 0.85,               # Slightly more focused nucleus
+    'repetition_penalty': 1.5,   # Higher penalty for repetition
+    'length_penalty': 1.0,       # Neutral length penalty
+    'no_repeat_ngram_size': 2,   # Prevent 2-gram repetition
+    'do_sample': True,           # Enable sampling
+    'early_stopping': True,      # Stop generation when appropriate
+    'pad_token_id': 50256,       # For GPT-2 compatibility
 }
 
 # File type mappings

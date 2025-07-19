@@ -8,54 +8,47 @@ Classify intent: Summarization, translation, classification, etc.
 Handle edge cases: empty input, unsupported formats
 """
 
-def detect_input_type(input_data):
-    """
-    Determines input type: text, image, audio, or multimodal.
-    """
-    if isinstance(input_data, str):
-        if Path(input_data).exists():
-            mime, _ = mimetypes.guess_type(input_data)
-            if mime:
-                if "image" in mime:
-                    return "image"
-                elif "audio" in mime:
-                    return "audio"
-                elif "text" in mime or input_data.endswith(('.txt', '.md')):
-                    return "text_file"
-            return "unknown_file"
+def detect_input_type(user_input):
+    if isinstance(user_input, str):
+        if user_input.lower().endswith((".jpg", ".jpeg", ".png", ".gif")):
+            return "image"
+        elif user_input.lower().endswith((".mp3", ".wav", ".flac")):
+            return "audio"
+        elif user_input.lower().endswith(".txt"):
+            return "text"
         else:
             return "text"
-    
-    elif isinstance(input_data, dict):
-        if "text" in input_data and "image" in input_data:
+    elif isinstance(user_input, dict):
+        if "image" in user_input:
             return "multimodal"
-    
-    return "unknown"
+        elif "audio" in user_input:
+            return "audio"
+        else:
+            return "text"
+    else:
+        return "text"  # fallback
 
-def classify_intent(text):
-    """
-    Very basic rule-based intent classifier.
-    """
-    text = text.lower()
-    
-    if any(keyword in text for keyword in ["summarize", "tl;dr", "make it short"]):
-        return "summarization"
-    elif any(keyword in text for keyword in ["translate", "in french", "to spanish"]):
-        return "translation"
-    elif any(keyword in text for keyword in ["classify", "label", "sentiment"]):
-        return "text-classification"
-    elif any(keyword in text for keyword in ["generate", "story", "complete", "write"]):
-        return "text-generation"
-    elif any(keyword in text for keyword in ["detect objects", "bounding box", "find objects"]):
-        return "object-detection"
-    elif any(keyword in text for keyword in ["speech to text", "what is he saying"]):
-        return "automatic-speech-recognition"
-    elif any(keyword in text for keyword in ["text to speech", "read this aloud"]):
-        return "text-to-speech"
-    elif any(keyword in text for keyword in ["explain", "meaning", "definition"]):
-        return "zero-shot-classification"
-    
-    return "unknown"
+
+def classify_intent(user_input):
+    if isinstance(user_input, str):
+        lower_input = user_input.lower()
+        if "summarize" in lower_input or "summary" in lower_input:
+            return "summarization"
+        elif "translate" in lower_input:
+            return "translation"
+        elif "sentiment" in lower_input or "emotion" in lower_input:
+            return "sentiment-analysis"
+        elif ("story" in lower_input or "generate" in lower_input or 
+              "write" in lower_input or "create" in lower_input):
+            return "text-generation"
+        elif "classify" in lower_input or "category" in lower_input:
+            return "text-classification"
+    elif isinstance(user_input, dict) and "text" in user_input:
+        return classify_intent(user_input["text"])
+
+    # Default to text-generation for general queries
+    return "text-generation"
+
 
 def route_task(input_data):
     """

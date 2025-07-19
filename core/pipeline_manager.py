@@ -1,3 +1,4 @@
+from typing import Any
 from transformers import pipeline
 from functools import lru_cache
 
@@ -31,24 +32,62 @@ def get_pipeline(task: str):
     
     return pipeline(task, model=model)
 
-def run_pipeline(task: str, input_data, additional_args=None):
+from transformers import pipeline
+
+def run_pipeline(task: str, data: Any, **kwargs) -> Any:
     """
-    Run the pipeline for the given task and input.
+    Run the appropriate Hugging Face pipeline for the given task and data.
+    
+    Args:
+        task: The task to perform (e.g., 'text-generation', 'summarization')
+        data: The input data to process
+        **kwargs: Additional arguments to pass to the pipeline
+        
+    Returns:
+        The processed output from the pipeline
     """
-    pipe = get_pipeline(task)
-    
-    if additional_args is None:
-        additional_args = {}
-    
-    # Simple example; can be extended per task
     try:
-        if task == "zero-shot-classification":
-            return pipe(input_data, candidate_labels=["science", "sports", "politics", "health", "tech"], **additional_args)
-        elif task == "text-to-speech":
-            return pipe(input_data, **additional_args)  # Returns waveform
-        elif task == "image-text-to-text":
-            return pipe(**input_data, **additional_args)
+        # Try to get the pipeline for the specific task
+        pipe = pipeline(task, **kwargs)
+    except (KeyError, ValueError) as e:
+        print(f"[WARN] Pipeline for '{task}' not found. Using fallback 'text-generation'")
+        task = "text-generation"
+        pipe = pipeline(task, **kwargs)
+    
+    try:
+        # Handle different task types with appropriate parameters
+        if task in ["image-classification", "object-detection"]:
+            return pipe(data)
+            
+        elif task in ["automatic-speech-recognition", "audio-classification"]:
+            return pipe(data)
+            
+        elif task in ["summarization", "translation"]:
+            return pipe(data, max_length=130, min_length=30, do_sample=False)
+            
+        elif task == "text-generation":
+            # For text generation, ensure we get a reasonable response
+            if isinstance(data, str) and len(data) > 1024:
+                data = data[:1024]  # Truncate very long inputs
+            
+            result = pipe(
+                data,
+                max_length=150,
+                num_return_sequences=1,
+                temperature=0.7,
+                do_sample=True,
+                pad_token_id=50256  # GPT-2's pad token
+            )
+            return result[0] if isinstance(result, list) and len(result) > 0 else str(result)
+            
+        elif task == "sentiment-analysis":
+            return pipe(data, return_all_scores=True)
+            
         else:
-            return pipe(input_data, **additional_args)
+            # Generic fallback for other tasks
+            return pipe(data)
+            
     except Exception as e:
-        return {"error": str(e), "input": input_data}
+        print(f"[ERROR] Error running {task} pipeline: {str(e)}")
+        return {"error": f"Failed to process {task} pipeline: {str(e)}"}
+

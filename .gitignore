@@ -26,6 +26,8 @@ MANIFEST
 venv/
 env/
 ENV/
+env.bak/
+venv.bak/
 
 # IDE
 .idea/
@@ -46,8 +48,55 @@ logs/
 # Project specific
 cleanup.sh
 .DS_Store
+bfg.jar
 
 # Data files
+*.wav
+*.mp3
+*.mp4
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.pdf
+*.csv
+*.xlsx
+*.xls
+*.db
+*.sqlite3
+
+# Model files
+models/
+!models/README.md  # Keep the README in models directory
+
+# Python cache and bytecode
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# PyCharm
+.idea/
+*.iml
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 *.pkl
 *.h5
 *.hdf5
@@ -58,3 +107,7 @@ cleanup.sh
 .ipynb_checkpoints
 # Model checkpoints and large files
 models/intent_classifier/
+
+
+all_files.txt
+tracked_files.txt

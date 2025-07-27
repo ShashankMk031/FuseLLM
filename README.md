@@ -1,7 +1,6 @@
 #  FuseLLM: Multi-Pipeline, Modular AI Assistant
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97-Models%20on%20Hub-yellow)](https://huggingface.co/models)
 
 FuseLLM is a modular AI assistant that automatically detects input types (text, audio, image, multimodal), routes tasks to appropriate Hugging Face pipelines, retrieves relevant context, fuses results, validates outputs, and returns well-formatted responses.
